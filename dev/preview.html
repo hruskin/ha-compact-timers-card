@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title>Compact Timers Card — harness</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    background: #f2f4f7;
+    margin: 0;
+    padding: 24px;
+    --primary-text-color: #212121;
+    --secondary-text-color: #727272;
+    --primary-color: #03a9f4;
+    --divider-color: #e0e0e0;
+    --error-color: #db4437;
+    --warning-color: #ffa600;
+    --card-background-color: #fff;
+    --code-font-family: ui-monospace, monospace;
+  }
+  .stage { max-width: 420px; margin-bottom: 20px; }
+  .editor {
+    max-width: 480px; background: #fff; border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 20px;
+  }
+  h2 { font: 500 14px/1.4 system-ui; color: var(--secondary-text-color); }
+  #log { font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<h2>Karta s reálnými daty + syntetické stavy</h2>
+<div class="stage" id="stage-a"></div>
+
+<h2>Prázdný zdroj — hide_when_empty: true (karta nesmí být vidět)</h2>
+<div class="stage" id="stage-b"></div>
+
+<h2>GUI editor</h2>
+<div class="editor" id="stage-editor"></div>
+
+<h2>Konzole</h2>
+<div id="log"></div>
+
+<script>
+class HaCard extends HTMLElement {
+  connectedCallback() {
+    this.style.display = 'block';
+    this.style.background = 'var(--card-background-color)';
+    this.style.borderRadius = '12px';
+    this.style.boxShadow = '0 1px 3px rgba(0,0,0,.12)';
+  }
+}
+customElements.define('ha-card', HaCard);
+
+class HaIcon extends HTMLElement {
+  static get observedAttributes() { return ['icon']; }
+  attributeChangedCallback() { this.render(); }
+  connectedCallback() { this.render(); }
+  render() {
+    const size = getComputedStyle(this).getPropertyValue('--mdc-icon-size') || '18px';
+    this.style.display = 'inline-block';
+    this.style.width = size;
+    this.style.height = size;
+    this.style.borderRadius = '50%';
+    this.style.background = 'currentColor';
+    this.style.opacity = '.55';
+    this.title = this.getAttribute('icon') || '';
+  }
+}
+customElements.define('ha-icon', HaIcon);
+
+// Stub ha-form: ploche vykresleni schematu, emituje value-changed.
+class HaForm extends HTMLElement {
+  set schema(v) { this._schema = v; this._render(); }
+  get schema() { return this._schema; }
+  set data(v) { this._data = v; this._render(); }
+  get data() { return this._data; }
+  set hass(v) { this._hass = v; }
+
+  _flat() {
+    const out = [];
+    (this._schema || []).forEach(item => {
+      if (item.type === 'grid') item.schema.forEach(s => out.push(s));
+      else out.push(item);
+    });
+    return out;
+  }
+
+  _render() {
+    if (!this._schema || !this._data) return;
+    this.innerHTML = '';
+    this._flat().forEach(item => {
+      const label = this.computeLabel ? this.computeLabel(item) : item.name;
+      const wrap = document.createElement('div');
+      wrap.style.margin = '6px 0';
+      const value = this._data[item.name];
+      const input = document.createElement('input');
+      input.dataset.field = item.name;
+      if (item.selector && item.selector.boolean) {
+        input.type = 'checkbox';
+        input.checked = !!value;
+      } else {
+        input.type = 'text';
+        input.style.width = '260px';
+        input.value = Array.isArray(value) ? value.join(',') : (value === undefined ? '' : value);
+      }
+      input.addEventListener('change', () => {
+        const next = Object.assign({}, this._data);
+        if (input.type === 'checkbox') next[item.name] = input.checked;
+        else if (item.name === 'entities') next.entities = input.value.split(',').map(s => s.trim()).filter(Boolean);
+        else if (item.selector && item.selector.number) next[item.name] = Number(input.value);
+        else next[item.name] = input.value;
+        this.dispatchEvent(new CustomEvent('value-changed', { detail: { value: next }, bubbles: true, composed: true }));
+      });
+      wrap.append(label + ': ', input);
+      this.appendChild(wrap);
+    });
+  }
+}
+customElements.define('ha-form', HaForm);
+
+class HaIconPicker extends HTMLElement {
+  set hass(v) { this._hass = v; }
+  set label(v) { this._label = v; this._render(); }
+  set value(v) { if (this._value === v) return; this._value = v; this._render(); }
+  get value() { return this._value; }
+  _render() {
+    if (this._input) { this._input.value = this._value || ''; this._span.textContent = (this._label || '') + ': '; return; }
+    this._span = document.createElement('span');
+    this._span.textContent = (this._label || '') + ': ';
+    this._input = document.createElement('input');
+    this._input.style.width = '200px';
+    this._input.value = this._value || '';
+    this._input.addEventListener('change', () => {
+      this._value = this._input.value;
+      this.dispatchEvent(new CustomEvent('value-changed', { detail: { value: this._input.value }, bubbles: true, composed: true }));
+    });
+    this.append(this._span, this._input);
+  }
+}
+customElements.define('ha-icon-picker', HaIconPicker);
+
+const log = [];
+window.onerror = (m, s, l) => { log.push('CHYBA: ' + m + ' @' + l); paintLog(); };
+function paintLog() { document.getElementById('log').textContent = log.join('\n'); }
+
+const now = Math.floor(Date.now() / 1000);
+
+const hass = {
+  states: {
+    'sensor.living_room_timers': {
+      state: '2026-07-27T11:03:44+02:00',
+      attributes: {
+        friendly_name: 'Google Home Living Room Living Room timers',
+        next_timer_status: 'set',
+        timers: [
+          { timer_id: 'timer/9b2cca20', fire_time: now + 3104, duration: '1:00:00', status: 'set', label: null },
+          { timer_id: 'timer/7cb7d4b8', fire_time: now + 6714, duration: '2:00:00', status: 'set', label: null },
+          { timer_id: 'timer/aaaa1111', fire_time: now + 610,  duration: '0:15:00', status: 'paused', label: null },
+          { timer_id: 'timer/bbbb2222', fire_time: now + 47,   duration: '0:05:00', status: 'set', label: null },
+          { timer_id: 'timer/cccc3333', fire_time: now + 7,    duration: '0:03:00', status: 'set', label: null }
+        ]
+      }
+    },
+    'sensor.bedroom_timers': {
+      state: 'unavailable',
+      attributes: { friendly_name: 'Google Home bedroom bedroom timers', next_timer_status: 'none', timers: [] }
+    },
+    'timer.dishwasher_timer': {
+      state: 'active',
+      attributes: {
+        friendly_name: 'Časovač myčky',
+        duration: '1:38:00',
+        finishes_at: new Date(Date.now() + 2400000).toISOString()
+      }
+    },
+    'light.kuchyne': { state: 'on', attributes: { friendly_name: 'Kuchyně' } }
+  },
+  callService(domain, service, data) {
+    log.push('callService: ' + domain + '.' + service + ' ' + JSON.stringify(data));
+    paintLog();
+  }
+};
+</script>
+
+<script src="../dist/compact-timers-card.js"></script>
+
+<script>
+function mount(target, config) {
+  const card = document.createElement('compact-timers-card');
+  card.setConfig(config);
+  document.getElementById(target).appendChild(card);
+  card.hass = hass;
+  return card;
+}
+
+try {
+  mount('stage-a', {
+    type: 'custom:compact-timers-card',
+    entities: [
+      { entity: 'sensor.living_room_timers', icon: 'mdi:sofa' },
+      { entity: 'timer.dishwasher_timer', icon: 'mdi:dishwasher' }
+    ]
+  });
+
+  mount('stage-b', {
+    type: 'custom:compact-timers-card',
+    entities: ['sensor.bedroom_timers']
+  });
+
+  const editor = customElements.get('compact-timers-card').getConfigElement();
+  window.__editor = editor;
+  window.__emitted = [];
+  editor.addEventListener('config-changed', (e) => {
+    window.__emitted.push(JSON.parse(JSON.stringify(e.detail.config)));
+    log.push('config-changed: entities=' + JSON.stringify(e.detail.config.entities));
+    paintLog();
+  });
+  editor.setConfig({
+    type: 'custom:compact-timers-card',
+    entities: [{ entity: 'sensor.living_room_timers', icon: 'mdi:sofa' }]
+  });
+  editor.hass = hass;
+  document.getElementById('stage-editor').appendChild(editor);
+
+  log.push('karty i editor namontovany bez vyjimky');
+} catch (e) {
+  log.push('CHYBA pri montazi: ' + e.message + '\n' + e.stack);
+}
+paintLog();
+
+setInterval(() => { document.querySelectorAll('compact-timers-card').forEach(c => c.hass = hass); }, 5000);
+</script>
+
+</body>
+</html>
