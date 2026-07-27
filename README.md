@@ -77,6 +77,7 @@ entities:
 | `entities` | — | Povinné. Seznam entit, buď `entity_id`, nebo objekt s `entity` a `icon`. |
 | `title` | není | Když je vyplněný, karta dostane hlavičku s ikonou a textem. |
 | `icon` | `mdi:timer-sand` | Výchozí ikona řádku pro zdroje bez vlastní `icon`. |
+| `font_size` | `0` | Velikost písma v px. `0` převezme velikost z motivu (`--ha-font-size-m`). |
 | `hide_when_empty` | `true` | Skryje celou kartu, když neběží žádný časovač. |
 | `show_cancel` | `true` | Zobrazí tlačítko pro zrušení časovače. |
 | `confirm_cancel` | `true` | Zrušení na dva kliky — první ozbrojí, druhý do 3 s potvrdí. |
@@ -86,6 +87,17 @@ entities:
 | `max_timers` | `0` | Limit počtu zobrazených řádků, `0` = bez limitu. |
 
 Časovače se řadí podle nejbližšího doběhnutí.
+
+### Písmo
+
+Karta nemá vlastní font — dědí `--ha-font-family-body` z motivu, takže splyne
+se zbytkem dashboardu. Číslice používají `font-variant-numeric: tabular-nums`,
+aby měly pevnou šířku a odpočet při přepisu neposkakoval.
+
+Velikost se bere z `--ha-font-size-m`; volbou `font_size` ji přebiješ. Ostatní
+prvky se odvozují od ní — nastavený čas o 2 px menší, ikony a tlačítko úměrně,
+šířky sloupců v `em`. Výšku řádku drží tlačítko pro zrušení, takže větší písmo
+kartu nenatáhne.
 
 ## Zrušení časovače
 

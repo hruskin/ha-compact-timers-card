@@ -4,7 +4,7 @@
  * https://github.com/hruskin/ha-compact-timers-card
  */
 
-const CARD_VERSION = "1.1.1";
+const CARD_VERSION = "1.2.0";
 
 console.info(
   `%c COMPACT-TIMERS-CARD %c v${CARD_VERSION} `,
@@ -14,6 +14,7 @@ console.info(
 
 const DEFAULTS = {
   icon: "mdi:timer-sand",
+  font_size: 0,
   hide_when_empty: true,
   show_cancel: true,
   confirm_cancel: true,
@@ -27,6 +28,7 @@ const LABELS = {
   entities: "Zdroje časovačů",
   title: "Nadpis karty (prázdné = bez hlavičky)",
   icon: "Výchozí ikona řádku",
+  font_size: "Velikost písma v px (0 = podle motivu)",
   hide_when_empty: "Skrýt kartu, když nic neběží",
   show_cancel: "Tlačítko pro zrušení",
   confirm_cancel: "Rušit na dva kliky",
@@ -129,23 +131,33 @@ class CompactTimersCard extends HTMLElement {
   _buildShell() {
     this.shadowRoot.innerHTML = `
       <style>
-        ha-card { padding: 8px 14px; }
+        ha-card {
+          padding: 8px 14px;
+          /* Pismo se dedi z dashboardu; prepsat jde pres volbu font_size. */
+          --ctc-font: var(--ha-font-size-m, 14px);
+          font-family: var(--ha-font-family-body, inherit);
+        }
         .head {
           display: flex; align-items: center; gap: 6px;
-          font-size: 13px; color: var(--secondary-text-color);
+          font-size: calc(var(--ctc-font) - 1px);
+          color: var(--secondary-text-color);
           padding-bottom: 4px;
         }
-        .head ha-icon { --mdc-icon-size: 16px; }
+        .head ha-icon { --mdc-icon-size: 1.15em; }
         .row {
           display: flex; align-items: center; gap: 8px;
           padding: 3px 0; min-height: 24px;
         }
         .row + .row { border-top: 1px solid var(--divider-color); }
-        .ic { --mdc-icon-size: 18px; color: var(--secondary-text-color); flex: none; }
+        .ic {
+          --mdc-icon-size: calc(var(--ctc-font) + 4px);
+          color: var(--secondary-text-color); flex: none;
+        }
         .set {
-          font-family: var(--code-font-family, monospace);
-          font-size: 12px; color: var(--secondary-text-color);
-          width: 52px; text-align: right; flex: none;
+          font-size: calc(var(--ctc-font) - 2px);
+          font-variant-numeric: tabular-nums;
+          color: var(--secondary-text-color);
+          width: 4.4em; text-align: right; flex: none;
         }
         .track {
           flex: 1 1 auto; height: 6px; border-radius: 3px;
@@ -154,9 +166,11 @@ class CompactTimersCard extends HTMLElement {
         .fill { height: 100%; border-radius: 3px; transition: width 1s linear; }
         .fill.frozen { transition: none; opacity: .5; }
         .rem {
-          font-family: var(--code-font-family, monospace);
-          font-size: 14px; font-weight: 500; color: var(--primary-text-color);
-          width: 58px; text-align: right; flex: none;
+          font-size: var(--ctc-font);
+          font-variant-numeric: tabular-nums;
+          font-weight: var(--ha-font-weight-medium, 500);
+          color: var(--primary-text-color);
+          width: 4.4em; text-align: right; flex: none;
         }
         .cancel {
           flex: none; width: 26px; height: 26px; padding: 0; margin: 0;
@@ -164,12 +178,16 @@ class CompactTimersCard extends HTMLElement {
           color: var(--secondary-text-color);
           display: flex; align-items: center; justify-content: center;
         }
-        .cancel ha-icon { --mdc-icon-size: 16px; }
+        .cancel ha-icon { --mdc-icon-size: calc(var(--ctc-font) + 2px); }
         .cancel:hover { background: var(--divider-color); }
         .cancel.armed { color: var(--error-color, #db4437); }
-        .paused { color: var(--secondary-text-color); --mdc-icon-size: 14px; flex: none; }
+        .paused {
+          color: var(--secondary-text-color);
+          --mdc-icon-size: var(--ctc-font); flex: none;
+        }
         .empty {
-          font-size: 13px; color: var(--secondary-text-color); padding: 4px 0;
+          font-size: calc(var(--ctc-font) - 1px);
+          color: var(--secondary-text-color); padding: 4px 0;
         }
       </style>
       <ha-card>
@@ -179,6 +197,12 @@ class CompactTimersCard extends HTMLElement {
         <div id="body"></div>
       </ha-card>
     `;
+
+    if (this._config.font_size > 0) {
+      this.shadowRoot
+        .querySelector("ha-card")
+        .style.setProperty("--ctc-font", `${this._config.font_size}px`);
+    }
   }
 
   _collect() {
@@ -462,6 +486,10 @@ class CompactTimersCardEditor extends HTMLElement {
           { name: "hide_when_empty", selector: { boolean: {} } },
           { name: "show_cancel", selector: { boolean: {} } },
           { name: "confirm_cancel", selector: { boolean: {} } },
+          {
+            name: "font_size",
+            selector: { number: { min: 0, max: 32, mode: "box" } },
+          },
           {
             name: "max_timers",
             selector: { number: { min: 0, max: 20, mode: "box" } },

@@ -17,6 +17,9 @@
     --warning-color: #ffa600;
     --card-background-color: #fff;
     --code-font-family: ui-monospace, monospace;
+    --ha-font-family-body: Roboto, system-ui, sans-serif;
+    --ha-font-size-m: 14px;
+    --ha-font-weight-medium: 500;
   }
   .stage { max-width: 420px; margin-bottom: 20px; }
   .editor {
@@ -34,6 +37,11 @@
 
 <h2>Prázdný zdroj — hide_when_empty: true (karta nesmí být vidět)</h2>
 <div class="stage" id="stage-b"></div>
+
+<h2>Velikosti písma — výchozí (podle motivu), 16 px, 20 px</h2>
+<div class="stage" id="stage-f1"></div>
+<div class="stage" id="stage-f2"></div>
+<div class="stage" id="stage-f3"></div>
 
 <h2>GUI editor</h2>
 <div class="editor" id="stage-editor"></div>
@@ -206,6 +214,15 @@ try {
   mount('stage-b', {
     type: 'custom:compact-timers-card',
     entities: ['sensor.bedroom_timers']
+  });
+
+  [['stage-f1', 0], ['stage-f2', 16], ['stage-f3', 20]].forEach(([target, size]) => {
+    mount(target, {
+      type: 'custom:compact-timers-card',
+      font_size: size,
+      max_timers: 2,
+      entities: [{ entity: 'sensor.living_room_timers', icon: 'mdi:sofa' }]
+    });
   });
 
   const editor = customElements.get('compact-timers-card').getConfigElement();
