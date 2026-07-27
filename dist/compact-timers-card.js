@@ -4,7 +4,7 @@
  * https://github.com/hruskin/ha-compact-timers-card
  */
 
-const CARD_VERSION = "1.1.0";
+const CARD_VERSION = "1.1.1";
 
 console.info(
   `%c COMPACT-TIMERS-CARD %c v${CARD_VERSION} `,
@@ -327,9 +327,14 @@ class CompactTimersCard extends HTMLElement {
     this._armed.delete(key);
 
     if (timer.domain === "google_home") {
+      // skip_refresh je ve schematu vol.Optional bez defaultu, ale handler
+      // integrace na nej sahá pres call.data[...] — kdyz ho neposleme,
+      // sluzba spadne na KeyError. Posilame false, aby se koordinator
+      // po smazani rovnou obnovil.
       this._hass.callService("google_home", "delete_timer", {
         entity_id: timer.source,
         timer_id: timer.timerId,
+        skip_refresh: false,
       });
     } else {
       this._hass.callService("timer", "cancel", { entity_id: timer.source });
